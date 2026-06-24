@@ -53,6 +53,10 @@ constexpr uint8_t CMD_ROM_WRITE   = 0x52;
 constexpr uint8_t CMD_CONF_SAVE   = 0x53;
 constexpr uint8_t CMD_CONF_DELETE = 0x54;
 constexpr uint8_t CMD_RESET       = 0x55;
+// CMD_RESET payloads: 0xF8 = plain system reset; 0xDF = reset into the
+// Adafruit serial-DFU bootloader (reliable replacement for the flaky
+// 1200-baud USB touch on SoftDevice/BLE boards).
+constexpr uint8_t RESET_TO_BOOTLOADER = 0xDF;
 constexpr uint8_t CMD_DEV_HASH    = 0x56;
 constexpr uint8_t CMD_DEV_SIG     = 0x57;
 constexpr uint8_t CMD_FW_HASH     = 0x58;

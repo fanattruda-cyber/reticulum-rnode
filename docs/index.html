@@ -257,8 +257,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.min.js"></script>
 <!-- ?v= cache-buster: bump on any dfu.js / rnode.js change so browsers
      never pair a new index.html with a stale cached script. -->
-<script src="dfu.js?v=0.4.1"></script>
-<script src="js/rnode.js?v=0.4.1"></script>
+<script src="dfu.js?v=0.4.2"></script>
+<script src="js/rnode.js?v=0.4.2"></script>
 <script>
 'use strict';
 
@@ -456,11 +456,15 @@ if (btnReboot) {
     try {
       log('info', 'Select your board\u2019s CURRENT serial port (the running app)');
       const port = await navigator.serial.requestPort();
-      fwStage.textContent = 'Rebooting into bootloader (1200-baud touch)\u2026';
-      log('info', '1200-baud touch \u2014 rebooting into bootloader');
+      fwStage.textContent = 'Rebooting into bootloader\u2026';
+      // Primary: KISS reset-to-DFU command (reliable on fw \u2265 0.4.2).
+      log('info', 'Sending reset-to-bootloader command');
+      await RLRDfu.dfuRebootToBootloader(port);
+      // Fallback: 1200-baud touch for older firmware (no-op if already reset).
+      log('info', '1200-baud touch (fallback for older firmware)');
       await RLRDfu.dfuTouch(port);
       fwStage.textContent = 'Rebooted \u2014 now click \u2461 and pick the NEW bootloader port.';
-      log('ok', 'Touched. The board re-enumerated as a new port \u2014 click \u2461 to flash it.');
+      log('ok', 'Rebooted. The board re-enumerated as a new port \u2014 click \u2461 to flash it.');
     } catch (e) {
       fwStage.textContent = 'Reboot step failed: ' + e.message;
       log('err', 'Reboot to bootloader failed: ' + e.message);

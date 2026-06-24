@@ -308,6 +308,27 @@ async function dfuTouch(port) {
   await sleep(1600);   // give the bootloader time to re-enumerate
 }
 
+// Reliable reboot-to-bootloader: send the KISS reset-to-DFU command
+// (FEND CMD_RESET 0xDF FEND) over the open app port. The firmware resets
+// itself into the Adafruit serial-DFU bootloader via the SoftDevice-safe
+// GPREGRET path — unlike the 1200-baud touch, this is dependable on
+// BLE-enabled boards. No-op on firmware older than v0.4.2 (the command is
+// simply ignored), so callers should still run dfuTouch() as a fallback.
+async function dfuRebootToBootloader(port) {
+  try {
+    await port.open({ baudRate: 115200 });
+    const writer = port.writable.getWriter();
+    // FEND=0xC0, CMD_RESET=0x55, RESET_TO_BOOTLOADER=0xDF (no escaping needed)
+    await writer.write(new Uint8Array([0xC0, 0x55, 0xDF, 0xC0]));
+    writer.releaseLock();
+    await sleep(250);            // let the firmware receive + act on it
+    await port.close();
+  } catch (e) {
+    // Port busy/closing or board already resetting — ignore and continue.
+  }
+  await sleep(300);
+}
+
 // ---------------------------------------------------------------
 //  Top-level flash() entry point — owns the 115200 port lifecycle
 // ---------------------------------------------------------------
@@ -345,6 +366,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 window.RLRDfu = {
   dfuFlash,
   dfuTouch,
+  dfuRebootToBootloader,
   DfuPackage,
   HciPacket,
   crc16,

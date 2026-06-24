@@ -353,6 +353,25 @@ static void send_uint32(uint8_t cmd, uint32_t value) {
     send_frame(cmd, buf, 4);
 }
 
+// Reset into the Adafruit serial-DFU bootloader (GPREGRET magic 0x4E,
+// DFU_MAGIC_SERIAL_ONLY_RESET). This is the reliable way for a running
+// app to hand off to the bootloader — the 1200-baud USB touch is flaky
+// once the SoftDevice is up. While the SoftDevice owns the POWER
+// registers we must set GPREGRET through its API, not by writing the
+// register directly. Mirrors the sibling project's enter_bootloader().
+static void enter_serial_dfu() {
+    Serial.flush();
+    delay(50);
+    const uint32_t DFU_MAGIC_SERIAL_ONLY_RESET = 0x4E;
+#if HAS_BLE
+    sd_power_gpregret_clr(0, 0xFF);
+    sd_power_gpregret_set(0, DFU_MAGIC_SERIAL_ONLY_RESET);
+#else
+    NRF_POWER->GPREGRET = DFU_MAGIC_SERIAL_ONLY_RESET;
+#endif
+    NVIC_SystemReset();
+}
+
 // ---- Command dispatch --------------------------------------------
 
 static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
@@ -598,6 +617,10 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
             Serial.flush();
             delay(50);
             NVIC_SystemReset();
+        } else if (len >= 1 && data[0] == RESET_TO_BOOTLOADER) {
+            // Hand off to the serial-DFU bootloader so the host can flash
+            // without a manual double-tap reset.
+            enter_serial_dfu();
         }
         break;
 
