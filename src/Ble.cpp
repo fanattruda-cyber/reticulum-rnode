@@ -99,12 +99,13 @@ static void _connect_callback(uint16_t conn_handle) {
     // subscribed to NUS TX notifications yet, so writes would be lost.
     // We set s_connected in _secured_callback (after bonding) or
     // _notify_callback (when central subscribes to TX).
-    BLEConnection* conn = Bluefruit.Connection(conn_handle);
-    if (conn) {
-        conn->requestPHY(BLE_GAP_PHY_2MBPS);
-        conn->requestMtuExchange(515);
-        conn->requestDataLengthUpdate();
-    }
+    // Do NOT force 2M PHY / DLE / a large MTU exchange here. Stacking those
+    // onto a tight connection interval produces a high-rate link that drops
+    // to a supervision timeout ("Connection Timeout") under any main-loop or
+    // radio contention — the cause of the BLE up/down flapping with Sideband.
+    // The central still negotiates a working MTU on its own. Mirrors the
+    // known-good sibling firmware, which requests none of this.
+    (void)conn_handle;
     Serial.println("BLE: central connected (waiting for bond + notify)");
 }
 
@@ -145,7 +146,7 @@ void init(const char* device_name) {
 
     Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
     Bluefruit.begin();
-    Bluefruit.setTxPower(8);
+    Bluefruit.setTxPower(4);
 
     // Compute "RNode XXXX" name
     const ble_gap_addr_t gap_addr = Bluefruit.getAddr();
@@ -161,7 +162,10 @@ void init(const char* device_name) {
     // Connection callbacks
     Bluefruit.Periph.setConnectCallback(_connect_callback);
     Bluefruit.Periph.setDisconnectCallback(_disconnect_callback);
-    Bluefruit.Periph.setConnInterval(6, 12);  // 7.5 - 15 ms
+    // Leave the connection interval at the Bluefruit default (20-30 ms).
+    // The previous 7.5-15 ms request made the link too tight to sustain
+    // against the 2 s supervision timeout, causing it to flap. The
+    // known-good sibling firmware uses the default and is stable.
 
     // Security: PIN-based pairing (MITM via DisplayOnly IO caps).
     // PIN is stored at EEPROM[ADDR_BLE_PIN]; defaults to "123456" if
