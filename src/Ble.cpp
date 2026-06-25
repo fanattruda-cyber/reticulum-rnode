@@ -238,7 +238,36 @@ int read() {
 
 size_t write(const uint8_t* buf, size_t len) {
     if (!s_connected) return 0;
-    return s_ble_uart.write(buf, len);
+
+    // Chunk every BLE write to one ATT notification (MTU - 3) and flush
+    // each chunk individually, yielding between chunks.
+    //
+    // Handing a whole reassembled KISS frame (>1 notification) to
+    // BLEUart::write() and flushing it in one shot makes the SoftDevice
+    // queue back-to-back notifications with no chance to drain. Under
+    // contention with the LoRa ISR the notify queue fills, sd_ble_gatts_hvx
+    // returns NRF_ERROR_RESOURCES, and bytes are silently dropped — the KISS
+    // byte stream corrupts and surfaces upstream as Reticulum HMAC /
+    // ratchet-desync failures (and the long-message ceiling). Sending one
+    // notification-sized chunk at a time, flushed, with a short yield lets
+    // the SoftDevice drain its TX queue between chunks.
+    BLEConnection* conn = Bluefruit.Connection(Bluefruit.connHandle());
+    const uint16_t mtu = conn ? conn->getMtu() : (uint16_t)23;
+    const size_t   chunk = (mtu > 3) ? (size_t)(mtu - 3) : (size_t)20;
+
+    size_t sent = 0;
+    while (sent < len) {
+        size_t n = (len - sent < chunk) ? (len - sent) : chunk;
+        size_t w = s_ble_uart.write(buf + sent, n);
+        s_ble_uart.flushTXD();        // force exactly one notification per chunk
+        if (w == 0) break;            // link gone or fatal — stop
+        sent += w;
+        delay(3);                     // validated delay from @fanattruda-cyber's fix:
+                                      // let the SoftDevice drain the notify queue
+                                      // before the next chunk (also spaces back-to-
+                                      // back frames, e.g. the RSSI/SNR/DATA triplet).
+    }
+    return sent;
 }
 
 size_t write(uint8_t b) {

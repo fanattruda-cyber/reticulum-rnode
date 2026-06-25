@@ -36,7 +36,9 @@
 #define HAS_LED                 1
 #define HAS_BUTTON              0      // WisBlock Core alone has no user button
 #define HAS_BATTERY_SENSE       1
-#define HAS_VEXT_RAIL           1      // PIN_VEXT_EN (P1.05) gates the SX1262 3V3 rail
+#define HAS_VEXT_RAIL           0      // RAK4631 SX1262 is powered directly off 3V3 — no GPIO
+                                       // gate. (Matches the bench-validated agnostic-lora-net
+                                       // config, which drives no power-enable on this board.)
 #define HAS_DISPLAY             0
 #define HAS_BLE                 1
 #define HAS_PMU                 0
@@ -49,8 +51,10 @@
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "RAK4631 integrated"
-// Meshtastic variant.h sets SX126X_DIO3_TCXO_VOLTAGE 1.8, same as E22.
-#define RADIO_TCXO_VOLTAGE_MV   1800
+// Bench-validated agnostic-lora-net uses the RadioLib/MeshCore default 1.6 V here
+// (with a crystal fallback in the HAL). Meshtastic instead sets 1.8 V; both oscillate
+// on this board — 1.6 V is the value proven on our RAK4631 pair.
+#define RADIO_TCXO_VOLTAGE_MV   1600
 // The nRF52840's SPI peripherals are fully pin-remappable via the
 // PSEL registers, so RADIO_SPI_OVERRIDE_PINS=1 + calling
 // SPI.setPins(MISO, SCK, MOSI) at init is enough to talk to the
@@ -79,8 +83,9 @@
 #define PIN_LORA_RXEN           -1
 #define PIN_LORA_TXEN           -1
 
-// Power / peripherals
-#define PIN_VEXT_EN             37    // P1.05  ACTIVE HIGH — gates SX1262 3V3
+// Power / peripherals — no SX1262 power gate on RAK4631 (HAS_VEXT_RAIL 0 above), so
+// PIN_VEXT_EN is left -1 / unused. Our validated firmware never drives P1.05.
+#define PIN_VEXT_EN             -1
 #define VEXT_SETTLE_MS          10
 
 // Battery sense. The RAK4631 WisCore wires a 1:3 voltage divider

@@ -27,6 +27,7 @@ jobs:
           - Heltec_T114
           - RAK3401
           - T-Echo
+          - T1000E
 
     steps:
       - name: Checkout

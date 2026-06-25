@@ -1,12 +1,3 @@
-> [!CAUTION]
-> **Do not use this firmware.** It has an unresolved, fundamental defect: on
-> nRF52 boards the BLE connection drops repeatedly ("Link Status" flapping up
-> and down) whenever the LoRa radio is active — a BLE↔radio coexistence
-> problem that makes it unusable with BLE clients such as Sideband. The same
-> hardware works correctly with other firmware (e.g. Meshtastic, the official
-> RNode firmware), so the fault is in this codebase, not the boards. This
-> repository is **archived and unmaintained**; it should not be relied upon.
-
 # reticulum-rnode
 
 RNode firmware with KISS serial interface for nRF52840 + SX1262 boards. Acts as a USB-connected LoRa radio modem for [Reticulum](https://reticulum.network/)'s `RNodeInterface`.
@@ -18,11 +9,12 @@ The host runs the Reticulum stack (via `rnsd`, Sideband, or NomadNet); this firm
 | Board | Radio Module | Status |
 |-------|-------------|--------|
 | Faketec (Nice!Nano + E22-900M30S) | SX1262 + ext PA | Tested |
-| RAK4631 (WisBlock Core) | SX1262 integrated | Untested |
+| RAK4631 (WisBlock Core) | SX1262 integrated | Tested |
 | Seeed XIAO nRF52840 Kit | Wio-SX1262 | Untested |
 | Heltec Mesh Node T114 | SX1262 integrated | Untested |
 | RAK3401 1-Watt | SX1262 + 1W PA | Untested |
 | LilyGO T-Echo | SX1262 integrated | Untested — pins from Meshtastic, not bench-validated |
+| Seeed SenseCAP T1000-E | **LR1110** integrated | Untested — pins/radio from the agnostic-lora-net HAL, not bench-validated |
 
 ## Building
 
@@ -36,6 +28,7 @@ pio run -e XIAO_nRF52840
 pio run -e Heltec_T114
 pio run -e RAK3401
 pio run -e T-Echo
+pio run -e T1000E       # Seeed SenseCAP T1000-E (LR1110)
 
 # Flash via nrfutil (USB bootloader)
 pio run -e Faketec -t upload --upload-port COMxx
@@ -148,11 +141,35 @@ All board differentiation is via macros in `include/board/<name>.h`. No `#ifdef 
 1. A new board header in `include/board/`
 2. A new `[env:]` section in `platformio.ini`
 
+Boards with a **different radio** (e.g. the LR1110 on the SenseCAP T1000-E) additionally
+set `RADIO_USE_LR1110` in their header; `Radio.cpp` branches on it for the radio class,
+RF-switch setup, and IRQ hook. The rest of the radio core (the RadioLib LoRa API) is shared.
+
 See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
 
 ## Related Projects
 
 - [reticulum-lora-repeater](https://github.com/thatSFguy/reticulum-lora-repeater) — Same hardware, different personality: runs Reticulum on-device as an autonomous transport node.
+
+## Acknowledgments
+
+The BLE↔radio coexistence bug that had this firmware archived as "defective and
+unmaintained" was diagnosed and fixed by **[@fanattruda-cyber](https://github.com/fanattruda-cyber)** — with a healthy dose of neural-network
+assistance and, by his own account, two days and a great deal of Russian swearing.
+
+The symptom looked like a BLE connection problem (the link dropping whenever the
+LoRa radio was active), and every attempt to fix it at the BLE connection layer —
+connection interval, MTU negotiation, supervision timeout — failed. He found the
+real root cause: it was the **BLE NUS data path**. When a reassembled KISS frame
+exceeded one BLE notification, handing it to `BLEUart::write()` in a single shot
+and flushing immediately made the SoftDevice queue back-to-back notifications with
+no chance to drain; under contention with the LoRa ISR the notify queue overflowed,
+bytes were silently dropped, and the KISS byte stream corrupted — surfacing upstream
+as Reticulum HMAC / ratchet-desync failures, the long-message ceiling, and apparent
+BLE drops. The fix (`src/Ble.cpp`) chunks every BLE write to a single notification,
+flushes per chunk, and yields so the SoftDevice can keep up. Fixed in **v0.5.0**.
+
+Thank you. This firmware works because of you.
 
 ## License
 

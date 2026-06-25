@@ -147,11 +147,8 @@ static void _send_frame_on(uint8_t cmd, const uint8_t* data, size_t len, Transpo
     pos += rlr::kisscodec::escape(data, len, s_kiss_tx_buf + pos, KISS_TX_BUF_SIZE - pos - 1);
     s_kiss_tx_buf[pos++] = FEND;
     _write_buf(s_kiss_tx_buf, pos, t);
-    // Flush BLE TXD buffer at end of each KISS frame so the
-    // complete frame goes out as one (or few) BLE notifications.
-    if (t == TRANSPORT_BLE) {
-        rlr::ble::flush();
-    }
+    // No explicit BLE flush here: rlr::ble::write() now chunks the frame to
+    // one ATT notification each and flushTXD()s per chunk internally.
 }
 
 // Determine the active transport: when BLE is connected, all IO
@@ -270,12 +267,14 @@ static void emit_alock() {
 // Periodic housekeeping: sample the channel for the load/noise figures
 // and emit CMD_STAT_CHTM on a fixed cadence. Called from tick().
 static void status_tick() {
-    // DISABLED pending BLE-coexistence investigation. This polled the SX1262
-    // over SPI every 100 ms while BLE was connected — the one thing that began
-    // exactly when the radio turned on (matching the link-drop symptom), and
-    // exactly the kind of ungated radio polling Meshtastic deliberately avoids.
-    return;
-
+    // Re-enabled: the BLE link drops were the BLE NUS write path (large KISS
+    // frames flushed in one shot, see rlr::ble::write()), NOT this telemetry
+    // polling — it was disabled by elimination while that was still a suspect.
+    // No SPI lock is needed: status_tick(), radio::poll(), and tx_service() all
+    // run sequentially in the single cooperative loop() thread (the DIO1 ISR
+    // only sets a flag), so the RSSI reads here can never interleave with the
+    // radio state machine's SPI. Sampling is still gated to non-TX windows
+    // below, and read_rssi() is valid while the radio is in RX.
     if (!s_radio_on) return;
     uint32_t now = millis();
 
@@ -441,6 +440,8 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
             send_byte(CMD_BOARD, 0x52);
         #elif defined(BOARD_RAK4631)
             send_byte(CMD_BOARD, 0x51);
+        #elif defined(BOARD_T1000E)
+            send_byte(CMD_BOARD, 0x56);
         #else
             send_byte(CMD_BOARD, 0xFF);
         #endif
@@ -552,7 +553,11 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
                     rlr::radio::start_rx();
                     s_radio_on = true;
                     send_byte(CMD_RADIO_STATE, 0x01);
-                    // Telemetry burst disabled pending BLE-coexistence fix.
+                    // Report physical params and airtime limits now that the
+                    // radio is operational (RNode protocol §8.4.5 / §8.5).
+                    emit_phyprm();
+                    emit_csma();
+                    emit_alock();
                     uint32_t now = millis();
                     s_last_status_ms = now;
                     s_last_sample_ms = now;

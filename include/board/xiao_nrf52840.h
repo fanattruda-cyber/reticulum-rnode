@@ -93,8 +93,9 @@
 //   Red:   P0.26 (pin 26)
 //   Blue:  P0.06 (pin 6)
 //   Green: P0.30 (pin 30)
-// Using blue (most visible) as the heartbeat LED.
-#define PIN_LED                 6     // P0.06 — blue LED
+// Using red (P0.26) as the heartbeat LED, matching the bench-validated
+// agnostic-lora-net config (its XIAO variant blinks LED_RED).
+#define PIN_LED                 26    // P0.26 — red LED
 #define LED_ACTIVE_HIGH         0     // XIAO LEDs are ACTIVE LOW
 
 // ---- Default config values for first boot -------------------------

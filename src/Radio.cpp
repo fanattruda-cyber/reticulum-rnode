@@ -19,7 +19,11 @@ static Module s_module(PIN_LORA_NSS,    // CS / NSS
                        PIN_LORA_DIO1,   // IRQ (DIO1)
                        PIN_LORA_RESET,  // RESET
                        PIN_LORA_BUSY);  // BUSY
+#if defined(RADIO_USE_LR1110) && RADIO_USE_LR1110
+static LR1110 s_radio(&s_module);       // SenseCAP T1000-E
+#else
 static SX1262 s_radio(&s_module);
+#endif
 
 static bool s_online = false;
 
@@ -96,42 +100,70 @@ bool begin(const Config& cfg) {
         tcxo_v = (float)RADIO_TCXO_VOLTAGE_MV / 1000.0f;
     #endif
 
-    int state = s_radio.begin(freq_mhz, bw_khz, (uint8_t)cfg.sf,
-                              (uint8_t)cfg.cr, sync_word,
-                              (int8_t)cfg.txp_dbm, preamble_len,
-                              tcxo_v, use_regulator_ldo);
+    #if defined(RADIO_USE_LR1110) && RADIO_USE_LR1110
+        // LR1110::begin() takes no useRegulatorLDO argument (8 args).
+        (void)use_regulator_ldo;
+        int state = s_radio.begin(freq_mhz, bw_khz, (uint8_t)cfg.sf,
+                                  (uint8_t)cfg.cr, sync_word,
+                                  (int8_t)cfg.txp_dbm, preamble_len, tcxo_v);
+    #else
+        int state = s_radio.begin(freq_mhz, bw_khz, (uint8_t)cfg.sf,
+                                  (uint8_t)cfg.cr, sync_word,
+                                  (int8_t)cfg.txp_dbm, preamble_len,
+                                  tcxo_v, use_regulator_ldo);
+    #endif
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.print("Radio: SX1262 begin() failed, RadioLib code ");
+        Serial.print("Radio: " RADIO_CHIP " begin() failed, RadioLib code ");
         Serial.println(state);
         return false;
     }
 
     s_radio.setCRC(1);
 
-    #if RADIO_DIO2_AS_RF_SWITCH
-        state = s_radio.setDio2AsRfSwitch(true);
-        if (state != RADIOLIB_ERR_NONE) {
-            Serial.print("Radio: setDio2AsRfSwitch failed, RadioLib code ");
-            Serial.println(state);
-        }
-    #endif
-
-    #if defined(PIN_LORA_RXEN) && PIN_LORA_RXEN >= 0
+    #if defined(RADIO_USE_LR1110) && RADIO_USE_LR1110
+        // LR1110 (T1000-E): the antenna path is switched internally — no external
+        // GPIOs and no DIO2-as-RF-switch. Tell RadioLib so (matches Meshtastic's
+        // tracker-t1000-e and our bench-validated HAL). Non-fatal.
         {
-            uint32_t tx_pin = RADIOLIB_NC;
-            #if defined(PIN_LORA_TXEN) && PIN_LORA_TXEN >= 0
-                tx_pin = (uint32_t)PIN_LORA_TXEN;
-            #endif
-            s_radio.setRfSwitchPins((uint32_t)PIN_LORA_RXEN, tx_pin);
+            static const uint32_t rfsw_pins[] = {
+                RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC };
+            static const Module::RfSwitchMode_t rfsw_table[] = {
+                { LR11x0::MODE_STBY,  {} }, { LR11x0::MODE_RX,    {} },
+                { LR11x0::MODE_TX,    {} }, { LR11x0::MODE_TX_HP, {} },
+                { LR11x0::MODE_TX_HF, {} }, { LR11x0::MODE_GNSS,  {} },
+                { LR11x0::MODE_WIFI,  {} }, END_OF_MODE_TABLE };
+            s_radio.setRfSwitchTable(rfsw_pins, rfsw_table);
         }
+    #else
+        #if RADIO_DIO2_AS_RF_SWITCH
+            state = s_radio.setDio2AsRfSwitch(true);
+            if (state != RADIOLIB_ERR_NONE) {
+                Serial.print("Radio: setDio2AsRfSwitch failed, RadioLib code ");
+                Serial.println(state);
+            }
+        #endif
+
+        #if defined(PIN_LORA_RXEN) && PIN_LORA_RXEN >= 0
+            {
+                uint32_t tx_pin = RADIOLIB_NC;
+                #if defined(PIN_LORA_TXEN) && PIN_LORA_TXEN >= 0
+                    tx_pin = (uint32_t)PIN_LORA_TXEN;
+                #endif
+                s_radio.setRfSwitchPins((uint32_t)PIN_LORA_RXEN, tx_pin);
+            }
+        #endif
     #endif
 
     s_radio.setRxBoostedGainMode(true);
 
-    // Attach the single DIO1 handler. RadioLib's startReceive()/startTransmit()
+    // Attach the single IRQ handler. RadioLib's startReceive()/startTransmit()
     // set the IRQ mask (RxDone vs TxDone); the same handler fires for both and
-    // poll() disambiguates by state.
-    s_radio.setDio1Action(isr_dio1);
+    // poll() disambiguates by state. (SX126x: DIO1 action; LR11x0: IRQ action.)
+    #if defined(RADIO_USE_LR1110) && RADIO_USE_LR1110
+        s_radio.setIrqAction(isr_dio1);
+    #else
+        s_radio.setDio1Action(isr_dio1);
+    #endif
 
     s_online = true;
     Serial.print("Radio: configured @ ");
