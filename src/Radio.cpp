@@ -92,8 +92,16 @@ bool begin(const Config& cfg) {
     float bw_khz   = (float)cfg.bw_hz   / 1000.0f;
 
     const uint8_t  sync_word     = 0x12;   // RNode / private-LoRa sync word
-    const uint16_t preamble_len  = 16;
     const bool use_regulator_ldo = false;
+
+    // Match stock RNode's adaptive preamble so we interoperate on air: target a
+    // 24 ms preamble (LORA_PREAMBLE_TARGET_MS) with an 18-symbol floor
+    // (LORA_PREAMBLE_SYMBOLS_MIN). A fixed 16 was shorter than every stock RNode
+    // transmission and hurt acquisition, especially at fast data rates.
+    const float symbol_time_ms = (float)((uint32_t)1 << (uint32_t)cfg.sf) / bw_khz;
+    uint16_t preamble_len = (uint16_t)(24.0f / symbol_time_ms);
+    if (24.0f / symbol_time_ms > (float)preamble_len) preamble_len++;  // ceil
+    if (preamble_len < 18) preamble_len = 18;
 
     float tcxo_v = 0.0f;
     #if HAS_TCXO && defined(RADIO_TCXO_VOLTAGE_MV)
@@ -119,6 +127,12 @@ bool begin(const Config& cfg) {
     }
 
     s_radio.setCRC(1);
+
+    // Match stock RNode's low-data-rate optimization rule exactly: enable when
+    // the LoRa symbol time exceeds 16 ms (lora_low_datarate = symbol_time > 16).
+    // An LDRO mismatch demodulates long frames incorrectly while short ones may
+    // still decode — so getting this wrong silently breaks large/split packets.
+    s_radio.forceLDRO(symbol_time_ms > 16.0f);
 
     #if defined(RADIO_USE_LR1110) && RADIO_USE_LR1110
         // LR1110 (T1000-E): the antenna path is switched internally — no external
@@ -298,6 +312,15 @@ static void deliver_rx() {
     uint8_t* payload  = rx_tmp + 1;
     size_t   plen     = len - 1;
 
+    // NOTE: do NOT re-arm RX (startReceive) on the success paths below. We run
+    // in continuous RX (RX_TIMEOUT_INF), so the radio keeps listening after a
+    // packet and readData() has already cleared the IRQ. The two halves of a
+    // split packet are aired back-to-back by the sender (~1 ms apart), so by the
+    // time we finish handling the first half the radio is already receiving the
+    // second — calling startReceive() here drops to standby and ABORTS that
+    // in-flight second half, so large/split packets (images) never reassemble
+    // while single-frame messages are unaffected. Staying in continuous RX is
+    // also how stock RNode firmware behaves.
     if (is_split) {
         if (s_split_seq == 0xFF) {
             // First half — buffer it.
@@ -306,7 +329,6 @@ static void deliver_rx() {
                 s_split_len = plen;
                 s_split_seq = seq;
             }
-            arm_rx();
             return;
         } else if (seq == s_split_seq) {
             // Second half — join.
@@ -321,7 +343,6 @@ static void deliver_rx() {
             } else {
                 s_split_len = 0;
             }
-            arm_rx();
             return;
         } else {
             // Different sequence — replace the buffered first half.
@@ -333,7 +354,6 @@ static void deliver_rx() {
                 s_split_seq = 0xFF;
                 s_split_len = 0;
             }
-            arm_rx();
             return;
         }
     }
@@ -342,7 +362,6 @@ static void deliver_rx() {
     s_split_seq = 0xFF;
     s_split_len = 0;
     if (s_rx_cb) s_rx_cb(payload, plen, s_last_rssi, s_last_snr);
-    arm_rx();
 }
 
 // ---- State machine ------------------------------------------------

@@ -173,16 +173,25 @@ Thank you. This firmware works because of you.
 
 ## Changelog
 
-### v0.5.2 (webflasher hotfix — no firmware change)
+### v0.5.2
 
-- **Serial DFU per-page write pacing.** The flasher now idles ~102 ms after each
-  4 KB flash page (and before STOP), matching `adafruit-nrfutil`'s
-  `FLASH_PAGE_WRITE_TIME`, and no longer requests hardware flow control (the
-  bootloader's CDC link doesn't implement it). The previous 5 ms gap let the
-  host stream the next page while the bootloader was still blocked writing the
-  current one — bytes were dropped, the image CRC failed, and the board was left
-  with no valid app, so it stayed in the bootloader after flashing. Flash the
-  same `v0.5.1` firmware; only the flasher changed.
+- **Radio RX: stop aborting the second half of split packets (firmware).** In
+  continuous RX the radio keeps listening after a packet, and the two air frames
+  of a >254-byte (split) packet are sent back-to-back. We were calling
+  `startReceive()` after every received frame, which drops to standby and aborts
+  the in-flight second half — so large/multi-frame transfers (e.g. images) never
+  reassembled while single-frame messages worked. Now we stay in continuous RX
+  on the success path (matching stock RNode). Also align the LoRa PHY with stock
+  RNode for on-air interop: adaptive preamble (`ceil(24/symbol_time)`, min 18
+  symbols, was a fixed 16) and explicit low-data-rate optimization when symbol
+  time > 16 ms. Requires reflashing.
+- **Serial DFU per-page write pacing (webflasher).** The flasher now idles
+  ~102 ms after each 4 KB flash page (and before STOP), matching
+  `adafruit-nrfutil`'s `FLASH_PAGE_WRITE_TIME`, and no longer requests hardware
+  flow control (the bootloader's CDC link doesn't implement it). The previous
+  5 ms gap let the host stream the next page while the bootloader was still
+  blocked writing the current one — bytes were dropped, the image CRC failed,
+  and the board stayed in the bootloader after flashing.
 
 ### v0.5.1
 
