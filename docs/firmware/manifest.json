@@ -1,6 +1,75 @@
 {
-  "generated_at": "2026-06-26T13:33:32+00:00",
+  "generated_at": "2026-06-26T14:40:58+00:00",
   "releases": [
+    {
+      "tag": "v0.5.2",
+      "prerelease": false,
+      "boards": [
+        {
+          "name": "Faketec",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-Faketec-v0.5.2.hex",
+          "hex_size": 690866,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-Faketec-v0.5.2.uf2",
+          "uf2_size": 491520,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-Faketec-v0.5.2.zip",
+          "zip_size": 246395
+        },
+        {
+          "name": "Heltec_T114",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-Heltec_T114-v0.5.2.hex",
+          "hex_size": 690191,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-Heltec_T114-v0.5.2.uf2",
+          "uf2_size": 491008,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-Heltec_T114-v0.5.2.zip",
+          "zip_size": 246155
+        },
+        {
+          "name": "RAK3401",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-RAK3401-v0.5.2.hex",
+          "hex_size": 690191,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-RAK3401-v0.5.2.uf2",
+          "uf2_size": 491008,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-RAK3401-v0.5.2.zip",
+          "zip_size": 246155
+        },
+        {
+          "name": "RAK4631",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-RAK4631-v0.5.2.hex",
+          "hex_size": 690146,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-RAK4631-v0.5.2.uf2",
+          "uf2_size": 491008,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-RAK4631-v0.5.2.zip",
+          "zip_size": 246139
+        },
+        {
+          "name": "T-Echo",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-T-Echo-v0.5.2.hex",
+          "hex_size": 690146,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-T-Echo-v0.5.2.uf2",
+          "uf2_size": 491008,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-T-Echo-v0.5.2.zip",
+          "zip_size": 246139
+        },
+        {
+          "name": "T1000E",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-T1000E-v0.5.2.hex",
+          "hex_size": 672633,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-T1000E-v0.5.2.uf2",
+          "uf2_size": 478720,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-T1000E-v0.5.2.zip",
+          "zip_size": 239911
+        },
+        {
+          "name": "XIAO_nRF52840",
+          "hex_path": "firmware/v0.5.2/reticulum-rnode-XIAO_nRF52840-v0.5.2.hex",
+          "hex_size": 690866,
+          "uf2_path": "firmware/v0.5.2/reticulum-rnode-XIAO_nRF52840-v0.5.2.uf2",
+          "uf2_size": 491520,
+          "zip_path": "firmware/v0.5.2/reticulum-rnode-XIAO_nRF52840-v0.5.2.zip",
+          "zip_size": 246395
+        }
+      ]
+    },
     {
       "tag": "v0.5.1",
       "prerelease": false,
