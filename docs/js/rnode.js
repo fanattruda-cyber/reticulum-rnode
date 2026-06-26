@@ -143,9 +143,11 @@ function uint32ToBytes(val) {
 }
 
 function bytesToUint32(bytes, offset = 0) {
-    return (bytes[offset] << 24) | (bytes[offset+1] << 16) |
-           (bytes[offset+2] << 8) | bytes[offset+3];
+    return ((bytes[offset] << 24) | (bytes[offset+1] << 16) |
+            (bytes[offset+2] << 8) | bytes[offset+3]) >>> 0;
 }
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ---- RNode class -------------------------------------------------
 
@@ -157,6 +159,23 @@ class RNode {
         this._readLoopRunning = false;
         this._commandCallbacks = new Map();
         this._onLog = null;
+        // Serializes every device interaction. The RNode KISS protocol
+        // correlates responses purely by command byte, so two operations
+        // in flight at once (e.g. an auto read-back racing a button click)
+        // can steal each other's responses — the classic cause of the
+        // "had to click twice / freq=0 / random timeouts" UX. The lock
+        // guarantees one command fully completes (or times out) before the
+        // next byte goes on the wire.
+        this._lock = Promise.resolve();
+    }
+
+    // Run `fn` with exclusive access to the serial link. Returns fn's result.
+    // The chain never breaks on rejection: a failed/timed-out command still
+    // releases the lock so the queue keeps flowing.
+    _withLock(fn) {
+        const run = this._lock.then(fn, fn);
+        this._lock = run.then(() => {}, () => {});
+        return run;
     }
 
     // Connect to a Web Serial port
@@ -188,15 +207,24 @@ class RNode {
         if (this._onLog) this._onLog(msg);
     }
 
-    // Send a raw KISS frame
-    async _send(cmd, data = new Uint8Array(0)) {
+    // Write a raw KISS frame to the wire. NOT serialized — callers that
+    // need exclusivity must already hold the lock (see _send/_sendAndWait).
+    async _writeFrame(cmd, data = new Uint8Array(0)) {
         const frame = buildKissFrame(cmd, data);
         await this.writer.write(frame);
     }
 
-    // Send a command and wait for a specific response command
-    async _sendAndWait(cmd, data = new Uint8Array(0), responseCmd = cmd, timeoutMs = 3000) {
-        return new Promise((resolve, reject) => {
+    // Fire-and-forget command (no response expected). Serialized so it can't
+    // interleave between another command's request and its response.
+    async _send(cmd, data = new Uint8Array(0)) {
+        return this._withLock(() => this._writeFrame(cmd, data));
+    }
+
+    // Send a command and wait for a specific response command. Serialized
+    // end-to-end: the lock is held until the response arrives or we time out,
+    // so no other command can be matched against this one's response byte.
+    _sendAndWait(cmd, data = new Uint8Array(0), responseCmd = cmd, timeoutMs = 3000) {
+        return this._withLock(() => new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this._commandCallbacks.delete(responseCmd);
                 reject(new Error(`Timeout waiting for response to cmd 0x${cmd.toString(16)}`));
@@ -208,8 +236,12 @@ class RNode {
                 resolve(responseData);
             });
 
-            this._send(cmd, data).catch(reject);
-        });
+            this._writeFrame(cmd, data).catch((err) => {
+                clearTimeout(timer);
+                this._commandCallbacks.delete(responseCmd);
+                reject(err);
+            });
+        }));
     }
 
     // Background read loop that parses KISS frames
@@ -409,16 +441,25 @@ class RNode {
     // ---- ROM / EEPROM commands ------------------------------------
 
     async unlockRom() {
-        await this._send(CMD_UNLOCK_ROM, new Uint8Array([0xF8]));
-        // Small delay for the firmware to process
-        await new Promise(r => setTimeout(r, 100));
+        // Hold the lock across the write AND the settle delay so a following
+        // read can't fire while the firmware is still processing.
+        await this._withLock(async () => {
+            await this._writeFrame(CMD_UNLOCK_ROM, new Uint8Array([0xF8]));
+            await sleep(100);
+        });
     }
 
     async romRead(addr, length) {
-        const resp = await this._sendAndWait(CMD_ROM_READ, new Uint8Array([
-            (addr >> 8) & 0xFF, addr & 0xFF, length & 0xFF
-        ]));
-        return resp;
+        const req = new Uint8Array([(addr >> 8) & 0xFF, addr & 0xFF, length & 0xFF]);
+        // Retry once: right after an identity write the firmware can still be
+        // committing EEPROM to flash and briefly miss a request, which used to
+        // surface as "Timeout waiting for response to cmd 0x51".
+        try {
+            return await this._sendAndWait(CMD_ROM_READ, req);
+        } catch (e) {
+            await sleep(250);
+            return await this._sendAndWait(CMD_ROM_READ, req);
+        }
     }
 
     async romWrite(addr, data) {
@@ -426,9 +467,14 @@ class RNode {
         payload[0] = (addr >> 8) & 0xFF;
         payload[1] = addr & 0xFF;
         payload.set(data, 2);
-        await this._send(CMD_ROM_WRITE, payload);
-        // Small delay for flash write
-        await new Promise(r => setTimeout(r, 50));
+        // CMD_ROM_WRITE returns no response, so we pace with a settle delay.
+        // Held inside the lock so the firmware's EEPROM flash-commit finishes
+        // before the next command — current firmware commits the whole EEPROM
+        // on every write, which briefly stalls its serial RX.
+        await this._withLock(async () => {
+            await this._writeFrame(CMD_ROM_WRITE, payload);
+            await sleep(120);
+        });
     }
 
     async getDevHash() {
@@ -503,6 +549,10 @@ class RNode {
 
         // Set info lock
         await this.romWrite(ADDR_INFO_LOCK, new Uint8Array([INFO_LOCK_BYTE]));
+
+        // Let the final EEPROM flash-commit settle before the caller reads
+        // identity back, so the read-back doesn't race the commit.
+        await sleep(300);
 
         this._log("Identity provisioned and locked");
     }

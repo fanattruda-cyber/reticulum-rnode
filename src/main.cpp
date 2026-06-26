@@ -83,6 +83,9 @@ void loop() {
     // Finalize completed TX (CMD_READY + airtime) and start any queued packet.
     rlr::kiss::tx_service();
 
+    // Flush any deferred EEPROM writes once they've settled (batched commit).
+    rlr::eeprom::tick();
+
     // Heartbeat LED
     static rlr::Config s_minimal_cfg = { 0, 0, 0, 0, 0, rlr::CONFIG_FLAG_HEARTBEAT };
     rlr::led::heartbeat_tick(s_minimal_cfg);

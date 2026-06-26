@@ -211,19 +211,28 @@ class DfuTransport {
     });
   }
 
-  // Drain one ack — a frame bounded by two FEND (0xC0) bytes — or time
-  // out. Returns true if a frame boundary was seen, false on timeout.
-  // Deliberately lenient: it does NOT unescape or verify the ack body and
-  // NEVER throws, because the bootloader's ack framing/timing varies and
-  // strict verification is the classic cause of mid-flash DFU failures.
+  // Drain exactly one ack frame — skip any leading 0xC0 delimiters, consume
+  // the body, and stop at the closing 0xC0 — or time out. Returns true if a
+  // full frame was seen, false on timeout.
+  //
+  // Consuming a *whole* frame (rather than just counting two 0xC0 bytes) keeps
+  // the RX stream aligned: the Adafruit/Nordic bootloader often shares a single
+  // 0xC0 as both the closing delimiter of one ack and the opening delimiter of
+  // the next, so the old count-to-two logic drifted one boundary further into
+  // the stream on each call. Over a few hundred data packets that drift let the
+  // host run ahead of the bootloader and overrun its RX buffer — dropping bytes,
+  // failing the final image CRC, and leaving the old app in place (the classic
+  // "flash completes but nothing changed"). Still deliberately lenient: it does
+  // NOT unescape or verify the body and NEVER throws.
   async readAck(timeoutMs = ACK_TIMEOUT_MS) {
     const deadline = Date.now() + timeoutMs;
-    let fends = 0;
     try {
-      while (Date.now() < deadline) {
-        const b = await this._readByte(deadline);
-        if (b === 0xC0 && ++fends >= 2) return true;
-      }
+      // Skip leading delimiters (and any shared boundary 0xC0 left from a prior ack).
+      let b = await this._readByte(deadline);
+      while (b === 0xC0) b = await this._readByte(deadline);
+      // b is now the first body byte; consume the body up to the closing 0xC0.
+      while (b !== 0xC0) b = await this._readByte(deadline);
+      return true;
     } catch (e) {
       // per-byte timeout — fall through and report the miss
     }
@@ -337,7 +346,17 @@ async function dfuFlash(port, dfuPackage, { onStage, onProgress, log } = {}) {
   const logFn = log || (() => {});
 
   HciPacket.resetSequence();
-  await port.open({ baudRate: 115200 });
+  // adafruit-nrfutil opens the bootloader port with flow control enabled
+  // (DEFAULT_FLOW_CONTROL = True). Honor that when the platform supports it —
+  // it lets the bootloader hold the host off while it writes a flash page,
+  // which is the main defense against a USB-CDC overrun corrupting the image.
+  // Not every OS/driver implements RTS/CTS over CDC-ACM, so fall back cleanly.
+  try {
+    await port.open({ baudRate: 115200, flowControl: 'hardware' });
+  } catch (e) {
+    logFn('info', 'Hardware flow control unavailable — opening without it');
+    await port.open({ baudRate: 115200 });
+  }
   const transport = new DfuTransport(port, logFn);
   try {
     await transport.open();

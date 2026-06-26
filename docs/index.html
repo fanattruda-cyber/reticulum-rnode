@@ -56,6 +56,10 @@
   .hidden { display: none !important; }
   .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
   a { color: var(--accent); }
+  /* TX power of 0 dBm means the radio will barely transmit — flag it so the
+     user remembers to set a real power before deploying. */
+  input.warn-zero { border-color: var(--err); box-shadow: 0 0 0 1px var(--err); }
+  .field-note { color: var(--err); font-size: 11px; margin-top: 4px; min-height: 13px; }
 </style>
 </head>
 <body>
@@ -218,8 +222,14 @@
         <option value="8">4/8</option>
       </select></div>
     <div class="field narrow"><label>TX Power (dBm)</label>
-      <input id="cfg-txp" type="number" min="-9" max="22" value="22"></div>
+      <input id="cfg-txp" type="number" min="-9" max="22" value="22">
+      <div id="cfg-txp-note" class="field-note"></div></div>
   </div>
+  <p style="margin: 6px 0 0 0; color: var(--muted); font-size: 12px;">
+    <strong>Read Config</strong> shows the values currently on the device (a freshly
+    flashed board reads back all zeros until you <strong>Apply</strong>). Set your
+    values, click <strong>Apply</strong>, then <strong>Save to Flash</strong> to persist them.
+  </p>
   <div class="actions">
     <button id="btn-read-config" class="secondary">Read Config</button>
     <button id="btn-apply-config">Apply</button>
@@ -257,8 +267,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.min.js"></script>
 <!-- ?v= cache-buster: bump on any dfu.js / rnode.js change so browsers
      never pair a new index.html with a stale cached script. -->
-<script src="dfu.js?v=0.4.3"></script>
-<script src="js/rnode.js?v=0.4.3"></script>
+<script src="dfu.js?v=0.5.1"></script>
+<script src="js/rnode.js?v=0.5.1"></script>
 <script>
 'use strict';
 
@@ -614,6 +624,19 @@ $('btn-write-identity').addEventListener('click', async () => {
   } catch (e) { log('err', e.message); }
 });
 
+// Highlight TX power red when it is 0 dBm — easy to forget to change, and a
+// 0 dBm node will barely reach anything. Runs on load, on edit, and after a
+// Read Config populates the field from the device.
+function refreshTxpWarning() {
+  const el = $('cfg-txp');
+  const note = $('cfg-txp-note');
+  const zero = parseInt(el.value, 10) === 0;
+  el.classList.toggle('warn-zero', zero);
+  note.textContent = zero ? 'TX power is 0 dBm — set a real power before deploying.' : '';
+}
+$('cfg-txp').addEventListener('input', refreshTxpWarning);
+refreshTxpWarning();
+
 // Radio config
 $('btn-read-config').addEventListener('click', async () => {
   try {
@@ -628,7 +651,9 @@ $('btn-read-config').addEventListener('click', async () => {
     if (sf) $('cfg-sf').value = sf;
     if (cr) $('cfg-cr').value = cr;
     if (txp !== null) $('cfg-txp').value = txp;
+    refreshTxpWarning();
     log('ok', `freq=${freq} bw=${bw} sf=${sf} cr=${cr} txp=${txp}`);
+    if (!freq) log('info', 'Device reports freq=0 — it has no config yet. Set values and click Apply.');
   } catch (e) { log('err', e.message); }
 });
 

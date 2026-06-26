@@ -367,6 +367,7 @@ static void send_uint32(uint8_t cmd, uint32_t value) {
 // registers we must set GPREGRET through its API, not by writing the
 // register directly. Mirrors the sibling project's enter_bootloader().
 static void enter_serial_dfu() {
+    rlr::eeprom::flush();   // persist any deferred writes before DFU handoff
     Serial.flush();
     delay(50);
     const uint32_t DFU_MAGIC_SERIAL_ONLY_RESET = 0x4E;
@@ -613,6 +614,7 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
 
     case CMD_RESET:
         if (len >= 1 && data[0] == 0xF8) {
+            rlr::eeprom::flush();   // persist any deferred writes before reboot
             Serial.flush();
             delay(50);
             NVIC_SystemReset();

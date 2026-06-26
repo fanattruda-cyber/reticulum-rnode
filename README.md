@@ -171,6 +171,30 @@ flushes per chunk, and yields so the SoftDevice can keep up. Fixed in **v0.5.0**
 
 Thank you. This firmware works because of you.
 
+## Changelog
+
+### v0.5.1
+
+- **Webflasher DFU reliability** — the serial-DFU ack reader now consumes one
+  whole frame per packet instead of counting delimiter bytes. The old logic
+  drifted a frame ahead of the bootloader over a full image, overrunning it and
+  silently failing the image CRC, so the flash "completed" but the old app kept
+  running (most visible on RAK4631). The bootloader port also opens with
+  hardware flow control when available.
+- **Webflasher config UX** — all KISS commands are serialized through a lock, so
+  a background read can no longer steal another command's response (the cause of
+  dead clicks, `freq=0`, and stray `cmd 0x51` timeouts). ROM reads retry once,
+  and TX power is highlighted red when set to 0 dBm.
+- **Firmware EEPROM commits are batched** — `eeprom::write()` now defers the
+  flash commit and coalesces a provisioning burst into a single write, instead
+  of rewriting the whole 4 KB EEPROM per byte. That used to stall the KISS RX
+  handler during identity provisioning. Pending writes flush on idle and before
+  reset / DFU handoff.
+
+### v0.5.0
+
+- BLE↔radio coexistence fixed (see Acknowledgments); firmware un-archived.
+
 ## License
 
 See [LICENSE](LICENSE).
