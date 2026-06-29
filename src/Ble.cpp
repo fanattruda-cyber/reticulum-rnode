@@ -262,7 +262,7 @@ size_t write(const uint8_t* buf, size_t len) {
         s_ble_uart.flushTXD();        // force exactly one notification per chunk
         if (w == 0) break;            // link gone or fatal — stop
         sent += w;
-        delay(3);                     // validated delay from @fanattruda-cyber's fix:
+        delay(1);                     // validated delay from @fanattruda-cyber's fix:
                                       // let the SoftDevice drain the notify queue
                                       // before the next chunk (also spaces back-to-
                                       // back frames, e.g. the RSSI/SNR/DATA triplet).

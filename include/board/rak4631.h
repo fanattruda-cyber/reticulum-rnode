@@ -28,7 +28,6 @@
 #define BOARD_RAK4631           0x51
 #define PRODUCT_RAK4631         0x10
 #define MODEL_RAK4631           0x12
-
 // ---- Capability flags ----------------------------------------------
 #define HAS_TCXO                1
 #define HAS_RF_SWITCH_RX_TX     1      // DIO2 handles TX/RX switching (internal)
@@ -42,12 +41,6 @@
 #define HAS_DISPLAY             0
 #define HAS_BLE                 1
 #define HAS_PMU                 0
-
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144    // 256 KB total
-#define BOARD_FLASH_BYTES       1048576   // 1 MB total (app gets ~800 KB)
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "RAK4631 integrated"
@@ -63,7 +56,6 @@
 #define RADIO_SPI_OVERRIDE_PINS 1
 #define RADIO_DIO2_AS_RF_SWITCH 1
 #define RADIO_MAX_DBM           22        // SX1262 core max
-
 // ---- Pin numbers ---------------------------------------------------
 // LoRa control lines — these match both the Meshtastic variant (in
 // pca10056 Arduino numbering) and the RAK4631 hardware schematic.
@@ -74,7 +66,6 @@
 #define PIN_LORA_RESET          38    // P1.06
 #define PIN_LORA_BUSY           46    // P1.14
 #define PIN_LORA_DIO1           47    // P1.15  (IRQ line)
-
 // RAK4631 does NOT expose an external LNA enable line — DIO2 handles
 // both TX and RX switching on the integrated RF front-end. This is
 // the simpler case compared to Faketec/E22 where PIN_LORA_RXEN is a
@@ -82,12 +73,10 @@
 // present" to the Radio.cpp init code.
 #define PIN_LORA_RXEN           -1
 #define PIN_LORA_TXEN           -1
-
 // Power / peripherals — no SX1262 power gate on RAK4631 (HAS_VEXT_RAIL 0 above), so
 // PIN_VEXT_EN is left -1 / unused. Our validated firmware never drives P1.05.
 #define PIN_VEXT_EN             -1
 #define VEXT_SETTLE_MS          10
-
 // Battery sense. The RAK4631 WisCore wires a 1:3 voltage divider
 // from the battery rail into P0.04 (AIN2). AREF on this board is
 // 3.0 V, so the raw 12-bit ADC reading maps to mV via roughly
@@ -96,11 +85,9 @@
 // webflasher's CALIBRATE BATTERY flow will refine per-device.
 #define PIN_BATTERY             4     // P0.04
 #define BATTERY_ADC_RESOLUTION  12
-
 // LED — RAK4631 Green LED1 on P1.03 (pin 35 in pca10056 numbering).
 #define PIN_LED                 35
 #define LED_ACTIVE_HIGH         1
-
 // ---- Default config values for first boot -------------------------
 // US ISM band with conservative TX power — the webflasher's CONFIG
 // SET / COMMIT flow lets the user raise this after they've confirmed

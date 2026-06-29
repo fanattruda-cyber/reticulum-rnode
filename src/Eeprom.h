@@ -12,7 +12,7 @@
 
 namespace rlr { namespace eeprom {
 
-constexpr size_t EEPROM_SIZE = 4096;
+constexpr size_t EEPROM_SIZE = 256;
 
 // Mount InternalFS (if not already mounted) and load /eeprom.dat
 // into the in-memory buffer. Creates the file with 0xFF fill if

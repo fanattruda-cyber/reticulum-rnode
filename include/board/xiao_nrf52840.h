@@ -24,14 +24,12 @@
 //    * Seeed XIAO nRF52840 pinout diagram
 //    * Wio-SX1262 for XIAO schematic
 // =====================================================================
-
 // ---- Board identity ------------------------------------------------
 #define BOARD_NAME              "XIAO nRF52840 Kit"
 #define BOARD_MANUFACTURER      "Seeed Studio"
 #define BOARD_XIAO_NRF52840     0x53
 #define PRODUCT_XIAO_NRF52840   0x19
 #define MODEL_XIAO_NRF52840     0x19
-
 // ---- Capability flags ----------------------------------------------
 #define HAS_TCXO                1
 #define HAS_RF_SWITCH_RX_TX     1      // Wio-SX1262 has external LNA gated by RXEN
@@ -43,12 +41,6 @@
 #define HAS_DISPLAY             0
 #define HAS_BLE                 1
 #define HAS_PMU                 0
-
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144    // 256 KB total
-#define BOARD_FLASH_BYTES       1048576   // 1 MB total (app gets ~800 KB)
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "Wio-SX1262 for XIAO"
@@ -56,7 +48,6 @@
 #define RADIO_SPI_OVERRIDE_PINS 1          // must remap SPI to Wio daughter board pins
 #define RADIO_DIO2_AS_RF_SWITCH 1
 #define RADIO_MAX_DBM           22         // SX1262 core max
-
 // ---- Pin numbers (pca10056 convention) -----------------------------
 //
 // Meshtastic variant.h  →  XIAO Dx  →  nRF52840 Px.xx  →  pca10056 pin
@@ -78,7 +69,6 @@
 #define PIN_LORA_DIO1           3     // P0.03 — IRQ line
 #define PIN_LORA_RXEN           5     // P0.05 — external LNA enable (same as Faketec topology)
 #define PIN_LORA_TXEN           -1    // handled by DIO2_AS_RF_SWITCH
-
 // Power / peripherals
 // No VEXT gate on the XIAO kit — radio runs directly off 3V3.
 // PIN_VEXT_EN intentionally not defined (HAS_VEXT_RAIL = 0).
@@ -88,7 +78,6 @@
 // batt_mult default is a rough guess; user calibrates via webflasher.
 #define PIN_BATTERY             31    // P0.31
 #define BATTERY_ADC_RESOLUTION  12
-
 // LED — XIAO nRF52840 has an RGB LED (active LOW, common anode):
 //   Red:   P0.26 (pin 26)
 //   Blue:  P0.06 (pin 6)
@@ -97,7 +86,6 @@
 // agnostic-lora-net config (its XIAO variant blinks LED_RED).
 #define PIN_LED                 26    // P0.26 — red LED
 #define LED_ACTIVE_HIGH         0     // XIAO LEDs are ACTIVE LOW
-
 // ---- Default config values for first boot -------------------------
 #define DEFAULT_CONFIG_FREQ_HZ          915000000UL
 #define DEFAULT_CONFIG_BW_HZ            125000UL

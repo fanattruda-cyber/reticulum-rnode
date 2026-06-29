@@ -31,7 +31,6 @@
 #define BOARD_T1000E            0x56
 #define PRODUCT_T1000E          0x26
 #define MODEL_T1000E            0x26
-
 // ---- Capability flags ----------------------------------------------
 #define HAS_TCXO                1
 #define HAS_RF_SWITCH_RX_TX     1      // switched internally by the LR1110
@@ -43,12 +42,6 @@
 #define HAS_DISPLAY             0
 #define HAS_BLE                 1
 #define HAS_PMU                 0
-
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144
-#define BOARD_FLASH_BYTES       1048576
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "LR1110"
 #define RADIO_MODULE            "SenseCAP T1000-E integrated"
@@ -57,7 +50,6 @@
 #define RADIO_SPI_OVERRIDE_PINS 1          // remap SPI to the LR1110 pins at init
 #define RADIO_DIO2_AS_RF_SWITCH 0          // N/A on LR1110 (internal switch)
 #define RADIO_MAX_DBM           22         // LR1110 high-power PA
-
 // ---- Pin numbers (pca10056 convention: P0.x == x, P1.x == 32+x) -----
 #define PIN_LORA_NSS            12    // P0.12
 #define PIN_LORA_SCK            11    // P0.11
@@ -68,11 +60,9 @@
 #define PIN_LORA_DIO1           33    // P1.01  (IRQ line)
 #define PIN_LORA_RXEN           -1    // RX/TX path is internal to the LR1110
 #define PIN_LORA_TXEN           -1
-
 // LED — green LED on P0.24, ACTIVE HIGH (matches our T1000-E variant).
 #define PIN_LED                 24    // P0.24
 #define LED_ACTIVE_HIGH         1
-
 // ---- Default config values for first boot -------------------------
 #define DEFAULT_CONFIG_FREQ_HZ          915000000UL
 #define DEFAULT_CONFIG_BW_HZ            125000UL

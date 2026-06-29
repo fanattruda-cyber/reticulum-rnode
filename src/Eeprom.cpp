@@ -3,6 +3,7 @@
 #include "Eeprom.h"
 #include <Arduino.h>
 #include <InternalFileSystem.h>
+#include "Md5.h"
 
 using namespace Adafruit_LittleFS_Namespace;
 
@@ -36,25 +37,70 @@ static void mark_dirty() {
     s_last_write_ms = now;
 }
 
+static void auto_provision() {
+    s_buf[0x00] = 0x18;  // product (Faketec)
+    s_buf[0x01] = 0x18;  // model
+    s_buf[0x02] = 0x01;  // hw_rev
+    
+    uint32_t device_id = NRF_FICR->DEVICEID[0];
+    s_buf[0x03] = (device_id >> 24) & 0xFF;
+    s_buf[0x04] = (device_id >> 16) & 0xFF;
+    s_buf[0x05] = (device_id >>  8) & 0xFF;
+    s_buf[0x06] = (device_id >>  0) & 0xFF;
+    
+    uint32_t made = millis();
+    s_buf[0x07] = (made >> 24) & 0xFF;
+    s_buf[0x08] = (made >> 16) & 0xFF;
+    s_buf[0x09] = (made >>  8) & 0xFF;
+    s_buf[0x0A] = (made >>  0) & 0xFF;
+    
+    MD5 md5;
+    md5.update(s_buf, 11);
+    md5.finalize();
+    md5.getBytes(s_buf + 0x0B);
+    
+    // Blank signature (128 bytes of 0x00) — convention for self-provisioned devices
+    memset(s_buf + 0x1B, 0x00, 128);
+
+    s_buf[0x9B] = 0x73;  // INFO_LOCK
+    
+    commit();
+    Serial.print("EEPROM: auto-provisioned, serial=0x");
+    Serial.println(device_id, HEX);
+}
+
+
 bool init() {
-    // Read existing file or create with 0xFF fill
     File f(InternalFS);
     if (f.open(EEPROM_FILE, FILE_O_READ)) {
         size_t n = f.read(s_buf, EEPROM_SIZE);
         f.close();
-        // If file is shorter than EEPROM_SIZE, fill remainder with 0xFF
+        
         if (n < EEPROM_SIZE) {
             memset(s_buf + n, 0xFF, EEPROM_SIZE - n);
         }
-        Serial.print("EEPROM: loaded ");
-        Serial.print(n);
-        Serial.println(" bytes from flash");
+        
+        // Check if EEPROM is blank (identity fields all 0xFF)
+        bool blank = true;
+        for (size_t i = 0; i < 11; i++) {  // product + model + hw_rev + serial + made
+            if (s_buf[i] != 0xFF) { blank = false; break; }
+        }
+        
+        if (blank) {
+            Serial.println("EEPROM: blank, auto-provisioning...");
+            auto_provision();
+        } else {
+            Serial.print("EEPROM: loaded ");
+            Serial.print(n);
+            Serial.println(" bytes from flash");
+        }
     } else {
-        // First boot — create blank EEPROM
+        // First boot — create blank EEPROM and auto-provision
         memset(s_buf, 0xFF, EEPROM_SIZE);
-        commit();
-        Serial.println("EEPROM: created new blank EEPROM file");
+        Serial.println("EEPROM: first boot, auto-provisioning...");
+        auto_provision();
     }
+    
     s_initialized = true;
     return true;
 }

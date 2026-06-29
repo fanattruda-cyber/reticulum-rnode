@@ -51,11 +51,6 @@
 #define HAS_BLE                 1
 #define HAS_PMU                 0
 
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144    // 256 KB total
-#define BOARD_FLASH_BYTES       1048576   // 1 MB total (app gets ~800 KB)
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "T-Echo integrated"

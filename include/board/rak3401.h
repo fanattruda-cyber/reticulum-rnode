@@ -26,7 +26,6 @@
 #define BOARD_RAK3401           0x55
 #define PRODUCT_RAK3401         0x21
 #define MODEL_RAK3401           0x21
-
 // ---- Capability flags ----------------------------------------------
 #define HAS_TCXO                1
 #define HAS_RF_SWITCH_RX_TX     1      // DIO2 handles TX/RX switching
@@ -38,12 +37,6 @@
 #define HAS_DISPLAY             0
 #define HAS_BLE                 1
 #define HAS_PMU                 0
-
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144
-#define BOARD_FLASH_BYTES       1048576
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "RAK3401 integrated + 1W PA"
@@ -51,7 +44,6 @@
 #define RADIO_SPI_OVERRIDE_PINS 1
 #define RADIO_DIO2_AS_RF_SWITCH 1
 #define RADIO_MAX_DBM           22     // SX1262 core max; ext PA adds gain
-
 // ---- Pin numbers (pca10056 convention, 1:1 mapping) ----------------
 //
 // LoRa SPI uses the same physical pins as RAK4631's SPI1:
@@ -67,21 +59,17 @@
 #define PIN_LORA_DIO1           10    // P0.10
 #define PIN_LORA_RXEN           -1    // no external LNA — DIO2 handles everything
 #define PIN_LORA_TXEN           -1
-
 // Power
 #define PIN_VEXT_EN             21    // P0.21 — SX126X_POWER_EN (radio 3V3 gate)
 #define VEXT_SETTLE_MS          10
 // Note: PIN_3V3_EN (34) gates the general 3V3 rail. We don't manage
 // it — it's assumed to be on by the bootloader/board init.
-
 // Battery — PIN_A0 = pin 5 (P0.05) via voltage divider
 #define PIN_BATTERY             5     // P0.05
 #define BATTERY_ADC_RESOLUTION  12
-
 // LED — PIN_LED1 = 35 (P1.03), same as RAK4631
 #define PIN_LED                 35    // P1.03
 #define LED_ACTIVE_HIGH         1
-
 // ---- Default config values for first boot -------------------------
 #define DEFAULT_CONFIG_FREQ_HZ          915000000UL
 #define DEFAULT_CONFIG_BW_HZ            125000UL

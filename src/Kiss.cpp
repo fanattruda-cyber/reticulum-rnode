@@ -22,7 +22,6 @@ namespace rlr { namespace kiss {
 // ---- State -------------------------------------------------------
 
 static constexpr size_t FRAME_BUF_SIZE = 512;
-
 // Serial KISS parser state
 static uint8_t s_frame_buf[FRAME_BUF_SIZE];
 static size_t  s_frame_len = 0;
@@ -100,29 +99,28 @@ static constexpr uint16_t ADDR_CONF_FREQ = 0xA3;  // 4 bytes
 static constexpr uint16_t ADDR_CONF_OK   = 0xA7;  // 1 byte (0x73 = valid)
 static constexpr uint16_t ADDR_FW_HASH   = 0xB0;  // 32 bytes
 
-// TX queue — single-slot buffer. When the radio is busy transmitting,
-// the next packet waits here. CMD_READY reports queue availability.
+// TX queue — multi-slot ring buffer. When the radio is busy transmitting,
+// packets wait here (up to TX_QUEUE_SLOTS). CMD_READY reports queue
+// availability.
 static constexpr size_t TX_QUEUE_SIZE = 512;
-static uint8_t  s_tx_queue[TX_QUEUE_SIZE];
-static size_t   s_tx_queue_len = 0;
+static constexpr size_t TX_QUEUE_SLOTS = 20;
+static uint8_t  s_tx_queue[TX_QUEUE_SLOTS][TX_QUEUE_SIZE];
+static size_t   s_tx_queue_len[TX_QUEUE_SLOTS] = {0};
+static size_t   s_tx_queue_head = 0;
+static size_t   s_tx_queue_tail = 0;
+static size_t   s_tx_queue_count = 0;
 // Full payload length of the packet the radio is currently airing, so its
 // airtime can be accounted when the async transmission completes.
-static size_t   s_tx_inflight_len = 0;
 
+static size_t   s_tx_inflight_len = 0;
 // ---- Transport abstraction ----------------------------------------
 // Tracks which transport (Serial or BLE) sent the last command so
 // responses go back the same way. RX packets always go to both.
 
-enum Transport : uint8_t { TRANSPORT_SERIAL = 0, TRANSPORT_BLE = 1 };
-static Transport s_last_transport = TRANSPORT_SERIAL;
+// ---- Transport abstraction ----------------------------------------
+// Tracks which transport (Serial or BLE) is active. RX packets always go to both.
 
-static void _write_byte(uint8_t b, Transport t) {
-    if (t == TRANSPORT_BLE) {
-        rlr::ble::write(b);
-    } else {
-        Serial.write(b);
-    }
-}
+enum Transport : uint8_t { TRANSPORT_SERIAL = 0, TRANSPORT_BLE = 1 };
 
 static void _write_buf(const uint8_t* buf, size_t len, Transport t) {
     if (t == TRANSPORT_BLE) {
@@ -386,29 +384,31 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
     switch (cmd) {
 
     case CMD_DATA:
-        // TX packet via radio. Non-blocking: hand the packet to the radio and
-        // let the poll()-driven state machine air it; completion (CMD_READY +
-        // airtime accounting) is handled in tx_service() so the main loop keeps
-        // servicing BLE during the transmission.
-        if (s_radio_on && len > 0) {
-            // Airtime cap (CMD_ST_ALOCK/CMD_LT_ALOCK) — refuse to transmit
-            // while over budget and report backpressure (SPEC.md §8.5.1).
-            if (airtime_cap_blocks_tx()) {
-                send_byte(CMD_ERROR, ERROR_QUEUE_FULL);
-                break;
-            }
-            if (rlr::radio::enqueue_tx(data, len)) {
-                s_tx_inflight_len = len;
-                rlr::led::on();
-            } else if (s_tx_queue_len == 0 && len <= TX_QUEUE_SIZE) {
-                // Radio busy — park one packet in the single-slot queue.
-                memcpy(s_tx_queue, data, len);
-                s_tx_queue_len = len;
-            } else {
-                send_byte(CMD_ERROR, ERROR_QUEUE_FULL);
-            }
+    // TX packet via radio. Non-blocking: hand the packet to the radio and
+    // let the poll()-driven state machine air it; completion (CMD_READY +
+    // airtime accounting) is handled in tx_service() so the main loop keeps
+    // servicing BLE during the transmission.
+    if (s_radio_on && len > 0) {
+        // Airtime cap (CMD_ST_ALOCK/CMD_LT_ALOCK) — refuse to transmit
+        // while over budget and report backpressure (SPEC.md §8.5.1).
+        if (airtime_cap_blocks_tx()) {
+            send_byte(CMD_ERROR, ERROR_QUEUE_FULL);
+            break;
         }
-        break;
+        if (rlr::radio::enqueue_tx(data, len)) {
+            s_tx_inflight_len = len;
+            rlr::led::on();
+        } else if (s_tx_queue_count < TX_QUEUE_SLOTS && len <= TX_QUEUE_SIZE) {
+            // Radio busy — park the packet in the ring buffer.
+            memcpy(s_tx_queue[s_tx_queue_tail], data, len);
+            s_tx_queue_len[s_tx_queue_tail] = len;
+            s_tx_queue_tail = (s_tx_queue_tail + 1) % TX_QUEUE_SLOTS;
+            s_tx_queue_count++;
+        } else {
+            send_byte(CMD_ERROR, ERROR_QUEUE_FULL);
+        }
+    }
+    break;
 
     case CMD_DETECT:
         if (len >= 1 && data[0] == DETECT_REQ) {
@@ -590,8 +590,8 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
         break;
 
     case CMD_READY:
-        send_byte(CMD_READY, (!rlr::radio::tx_busy() && s_tx_queue_len == 0) ? 0x01 : 0x00);
-        break;
+    send_byte(CMD_READY, (!rlr::radio::tx_busy() && s_tx_queue_count == 0) ? 0x01 : 0x00);
+    break;
 
     case CMD_BLINK:
         if (len >= 1) {
@@ -626,16 +626,13 @@ static void dispatch_frame(uint8_t cmd, const uint8_t* data, size_t len) {
         break;
 
     case CMD_ROM_READ:
-        // Read from EEPROM: payload = [addr_hi, addr_lo, length]
-        if (len == 3) {
-            uint16_t addr = ((uint16_t)data[0] << 8) | data[1];
-            uint8_t rlen = data[2];
-            uint8_t rom_buf[256];
-            if (rlen > sizeof(rom_buf)) rlen = sizeof(rom_buf);
-            size_t n = rlr::eeprom::read(addr, rom_buf, rlen);
-            send_frame(CMD_ROM_READ, rom_buf, n);
-        }
-        break;
+    // Read from EEPROM: payload = [0x00] → return entire EEPROM (rnodeconf protocol)
+    if (len == 1 && data[0] == 0x00) {
+        uint8_t rom_buf[rlr::eeprom::EEPROM_SIZE];
+        size_t n = rlr::eeprom::read(0, rom_buf, rlr::eeprom::EEPROM_SIZE);
+        send_frame(CMD_ROM_READ, rom_buf, n);
+    }
+    break;
 
     case CMD_ROM_WRITE:
         // Write to EEPROM: payload = [addr_hi, addr_lo, data...]
@@ -872,14 +869,16 @@ void tx_service() {
         s_tx_count++;
         record_tx_airtime(s_tx_inflight_len);
         s_tx_inflight_len = 0;
-        send_byte(CMD_READY, s_tx_queue_len == 0 ? 0x01 : 0x00);
+        send_byte(CMD_READY, s_tx_queue_count == 0 ? 0x01 : 0x00);
     }
 
-    // Start a queued packet once the radio is idle and within the airtime cap.
-    if (s_tx_queue_len > 0 && !rlr::radio::tx_busy() && !airtime_cap_blocks_tx()) {
-        if (rlr::radio::enqueue_tx(s_tx_queue, s_tx_queue_len)) {
-            s_tx_inflight_len = s_tx_queue_len;
-            s_tx_queue_len = 0;
+    // Start the next queued packet once the radio is idle and within the airtime cap.
+    if (s_tx_queue_count > 0 && !rlr::radio::tx_busy() && !airtime_cap_blocks_tx()) {
+        size_t len = s_tx_queue_len[s_tx_queue_head];
+        if (rlr::radio::enqueue_tx(s_tx_queue[s_tx_queue_head], len)) {
+            s_tx_inflight_len = len;
+            s_tx_queue_head = (s_tx_queue_head + 1) % TX_QUEUE_SLOTS;
+            s_tx_queue_count--;
             rlr::led::on();
         }
     }

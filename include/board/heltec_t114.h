@@ -24,7 +24,6 @@
 #define BOARD_HELTEC_T114       0x54
 #define PRODUCT_HELTEC_T114     0x20
 #define MODEL_HELTEC_T114       0x20
-
 // ---- Capability flags ----------------------------------------------
 #define HAS_TCXO                1
 #define HAS_RF_SWITCH_RX_TX     1      // DIO2 handles TX/RX switching (no external RXEN)
@@ -36,12 +35,6 @@
 #define HAS_DISPLAY             0      // hardware has TFT, firmware doesn't use it
 #define HAS_BLE                 1
 #define HAS_PMU                 0
-
-// ---- MCU / SRAM budget --------------------------------------------
-#define BOARD_MCU               "nRF52840"
-#define BOARD_SRAM_BYTES        262144
-#define BOARD_FLASH_BYTES       1048576
-
 // ---- Radio module --------------------------------------------------
 #define RADIO_CHIP              "SX1262"
 #define RADIO_MODULE            "Heltec T114 integrated"
@@ -49,7 +42,6 @@
 #define RADIO_SPI_OVERRIDE_PINS 1
 #define RADIO_DIO2_AS_RF_SWITCH 1
 #define RADIO_MAX_DBM           22
-
 // ---- Pin numbers (pca10056 convention, 1:1 mapping) ----------------
 #define PIN_LORA_NSS            24    // P0.24
 #define PIN_LORA_SCK            19    // P0.19
@@ -60,7 +52,6 @@
 #define PIN_LORA_DIO1           20    // P0.20
 #define PIN_LORA_RXEN           -1    // no external LNA — DIO2 handles everything
 #define PIN_LORA_TXEN           -1
-
 // Power
 #define PIN_VEXT_EN             21    // P0.21 — gates external peripherals + radio 3V3
 #define VEXT_SETTLE_MS          10
@@ -69,17 +60,15 @@
 // Note: ADC_CTRL needs to be driven HIGH to enable the divider
 // before reading. Our firmware doesn't handle this yet — battery
 // readings may be zero until ADC_CTRL support is added. Calibrate
+
 // via CALIBRATE BATTERY once it's working.
 #define PIN_BATTERY             4     // P0.04
 #define BATTERY_ADC_RESOLUTION  12
-
 // LED — green LED on P1.03 (pin 35)
 #define PIN_LED                 35    // P1.03
 #define LED_ACTIVE_HIGH         1
-
 // Button — P1.10 (pin 42)
 #define PIN_BUTTON              42
-
 // ---- Default config values for first boot -------------------------
 #define DEFAULT_CONFIG_FREQ_HZ          915000000UL
 #define DEFAULT_CONFIG_BW_HZ            125000UL
