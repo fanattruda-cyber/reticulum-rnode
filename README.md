@@ -16,7 +16,8 @@ RNode firmware with KISS serial interface for nRF52840 + SX1262 boards. Acts as 
 # Tested on Soft
 Columba,
 Sideband,
-MeshchatX(Pc version)
+MeshchatX(PC version)
+Nomadnet.
 
 ## Building
 
