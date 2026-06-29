@@ -37,6 +37,19 @@ static void mark_dirty() {
     s_last_write_ms = now;
 }
 
+static bool verify_checksum() {
+    // Compute MD5 of identity (11 bytes: product+model+hw_rev+serial+made)
+    MD5 md5;
+    md5.update(s_buf, 11);
+    md5.finalize();
+    
+    uint8_t computed[16];
+    md5.getBytes(computed);
+    
+    // Compare with stored checksum (bytes 0x0B-0x1A)
+    return memcmp(computed, s_buf + 0x0B, 16) == 0;
+}
+
 static void auto_provision() {
     s_buf[0x00] = 0x18;  // product (Faketec)
     s_buf[0x01] = 0x18;  // model
@@ -80,22 +93,24 @@ bool init() {
             memset(s_buf + n, 0xFF, EEPROM_SIZE - n);
         }
         
-        // Check if EEPROM is blank (identity fields all 0xFF)
+        // Check if EEPROM is blank
         bool blank = true;
-        for (size_t i = 0; i < 11; i++) {  // product + model + hw_rev + serial + made
+        for (size_t i = 0; i < 11; i++) {
             if (s_buf[i] != 0xFF) { blank = false; break; }
         }
         
         if (blank) {
             Serial.println("EEPROM: blank, auto-provisioning...");
             auto_provision();
+        } else if (!verify_checksum()) {
+            Serial.println("EEPROM: invalid checksum, re-provisioning...");
+            auto_provision();
         } else {
             Serial.print("EEPROM: loaded ");
             Serial.print(n);
-            Serial.println(" bytes from flash");
+            Serial.println(" bytes from flash (checksum valid)");
         }
     } else {
-        // First boot — create blank EEPROM and auto-provision
         memset(s_buf, 0xFF, EEPROM_SIZE);
         Serial.println("EEPROM: first boot, auto-provisioning...");
         auto_provision();

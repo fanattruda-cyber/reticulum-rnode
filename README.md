@@ -16,7 +16,7 @@ RNode firmware with KISS serial interface for nRF52840 + SX1262 boards. Acts as 
 # Tested on Soft
 Columba,
 Sideband,
-Meshchat.
+MeshchatX(Pc version)
 
 ## Building
 
@@ -24,7 +24,8 @@ Requires [PlatformIO](https://platformio.org/).
 
 ```bash
 # Build for a specific board
-pio run -e Faketec
+pio run -e Faketec_HT_RA62
+pio run -e Faketec_RA01SH
 pio run -e RAK4631
 pio run -e XIAO_nRF52840
 pio run -e Heltec_T114
@@ -33,10 +34,10 @@ pio run -e T-Echo
 pio run -e T1000E       # Seeed SenseCAP T1000-E (LR1110)
 
 # Flash via nrfutil (USB bootloader)
-pio run -e Faketec -t upload --upload-port COMxx
+pio run -e Faketec_RA01SH -t upload --upload-port COMxx
 
 # Serial monitor
-pio device monitor -e Faketec --port COMxx
+pio device monitor -e Faketec_RA01SH --port COMxx
 ```
 
 The build produces `firmware.hex`, `firmware.zip` (nrfutil DFU package), and `firmware.uf2` (for boards with UF2 bootloader like XIAO).
@@ -84,9 +85,9 @@ devices list, and apps like Sideband can connect without further prompts.
 
 ## Provisioning 
 
-Self-Provisioning in developement
+Self-Provisioning on first boot 
 
-If the device is not officially supported, then we will still not have a valid signature. Therefore: "keep it simple stupid"
+If the device is not officially supported, or FW is handmade then we will still not have a valid signature. Therefore: "keep it simple stupid"
 
 
 
