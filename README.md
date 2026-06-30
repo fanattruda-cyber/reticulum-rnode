@@ -1,7 +1,7 @@
 # reticulum-rnode
 <img width="368" height="270" alt="08ikgwg5tlrd1" src="https://github.com/user-attachments/assets/86fa66f2-8efc-4253-8377-5460f2a1bbab" />
 
-RNode firmware with KISS serial interface for nRF52840 + SX1262 boards. Acts as a USB-connected LoRa radio modem for [Reticulum](https://reticulum.network/)'s `RNodeInterface`.
+RNode firmware with KISS interface for nRF52840 + SX1262 boards. Acts as a USB/BLE-connected LoRa radio modem for [Reticulum](https://reticulum.network/)'s `RNodeInterface`.
 
 | Board | Radio Module | Status |
 |-------|-------------|--------|
@@ -16,7 +16,7 @@ RNode firmware with KISS serial interface for nRF52840 + SX1262 boards. Acts as 
 # Tested on Soft
 Columba,
 Sideband,
-MeshchatX(PC version)
+MeshchatX(PC version),
 Nomadnet.
 
 ## Building
@@ -56,7 +56,7 @@ The build produces `firmware.hex`, `firmware.zip` (nrfutil DFU package), and `fi
   [[RNode LoRa]]
 enabled = true
 type = RNodeInterface
-port = /dev/ttyACM0# or COMxx on Windows
+port = /dev/ttyACM0 
 frequency = 868672500
 bandwidth = 125000
 spreadingfactor = 7
