@@ -18,7 +18,7 @@ Columba,
 Sideband,
 MeshchatX(PC version),
 Nomadnet.
-
+Ratspeak с версии 1.0.23 нода коннектится и текстовая связь работает нормально, но скорость передачи файлов очко
 ## Building
 
 Requires [PlatformIO](https://platformio.org/).
